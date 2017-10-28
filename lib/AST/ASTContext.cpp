@@ -382,3 +382,57 @@ FuncDecl *ASTContext::getPlusFunctionOnString() const {
     }
     return Impl.PlusFunctionOnString;
 }
+
+#define KNOWN_STDLIB_TYPE_DECL(NAME, DECL_CLASS, NUM_GENERIC_PARAMS) \
+DECL_CLASS *ASTContext::get##NAME##Decl() const { \
+    if (!Impl.NAME##Decl) \ Impl.NAME##Decl = dyn_cast_or_null<DECL_CLASS>( \ findStdlibType(*this, #NAME, NUM_GENERIC_PARAMS)); \
+    return Impl.NAME##Decl; \
+}
+
+#include "photon/AST/KnownStdlibTypes.def"
+CanType ASTContext::getExceptionType() const {
+    if (auto exn = getErrorDecl()) {
+        return exn->getDeclaredType()->getCanonicalType();
+    } else {
+        return TheNativeObjectType;
+    }
+}
+
+ProtocolDecl *ASTContext::getErrorDecl() const {
+    return getProtocol(KnownProtocolKind::Error);
+}
+
+EnumDecl *ASTContext::getOptionalDecl(OptionalTypeKind kind) const {
+    switch (kind) {
+        case OTK_None:
+            llvm_unreachable("compulsory");
+        case OTK_ImplicitlyUnwrappedOptional:
+            return getImplicitlyUnwrappedOptionalDecl();
+        case OTK_Optional:
+            return getOptionalDecl();
+    }
+    llvm_unreachable("Optional Type is unhandled in switch");
+}
+
+static EnumElementDecl *findEnumElement(EnumDecl *e, Identifier name) {
+    for (auto elt : e->getAllElements()) {
+        if (elt->getName() == name) return elt;
+    }
+    return nullptr;
+}
+
+EnumElementDecl *ASTContext::getOptionalSomeDecl(OptionalTypeKind kind) const {
+    switch (kind) {
+        case OTK_Optional:
+            return getOptionalSomeDecl();
+        case OTK_ImplicitlyUnwrappedOptional:
+            return getImplicitlyUnwrappedOptionalSomeDecl();
+        case OTK_None:
+            llvm_unreachable("declaration for non-optio type");
+    }
+    llvm_unreachable("Optional Type Kind is bad..");
+}
+
+EnumElementDecl *ASTContext::getOptionalNoneDecl(OptionalTypeKind kind) const {
+    //
+}
