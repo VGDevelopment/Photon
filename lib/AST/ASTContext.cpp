@@ -76,7 +76,6 @@ namespace {
 } // end the without name namespace
 
 using AssociativityCacheType = llvm::DenseMap<std::pair<PrecedenceGroupDecl *, PrecedenceGroupDecl *>, Associativity>;
-
 #define FOR_KNOWN_FOUNDATION_TYPES(MACRO) \
     MACRO(NSError) \
     MACRO(NSNumber) \
@@ -143,7 +142,6 @@ struct ASTContext::Implementation {
     CanGenericSignature SingleGenericParameterSignature;
     llvm::DenseMap<CanType, CanGenericSignature> ExistentialSignatures;
     llvm::DenseMap<const AssociatedTypeDecl *, ArrayRef<AssociatedTypeDecl *>> AssociatedTypeOverrides;
-    
     struct Arena {
         llvm::DenseMap<Type, ErrorType *> ErrorTypesWithOriginal;
         llvm::FoldingSet<TupleType> TupleTypes;
@@ -196,5 +194,53 @@ struct ASTContext::Implementation {
     llvm::FoldingSet<GenericSignature> GenericSignatures;
     llvm::FoldingSet<DeclName::CompoundDeclName> CompoundNames;
     llvm::DenseMap<UUID, ArchetypeType *> OpenedExistentialArchetypes;
+    std::vector<ObjCMethodConflict> ObjCMethodConflicts;
+    std::vector<ObjCUnsatisfiedOptReq> ObjCUnsatisfiedOptReqs;
+    std::vector<AbstractFunctionDecl *> ObjCMethods;
+    llvm::DenseMap<NominalTypeDecl *, ForeignRepresentationInfo> ForeignRepresentableCache;
+    llvm::StringMap<OptionSet<SearchPathKind>> SearchPathsSet;
+    Arena Permanent;
+    struct ConstraintSolverArena : public Arena {
+        llvm::BumpPtrAllocator &Allocator;
+        ConstraintSolverArena(llvm::BumpPtrAllocator &allocator) : Allocator(allocator) {
+            //
+        }
+        ConstraintSolverArena(const ConstraintSolverArena &) = delete;
+        ConstraintSolverArena(ConstraintSolverArena &&) = delete;
+        ConstraintSolverArena &operator=(const ConstraintSolverArena &) = delete;
+        ConstraintSolverArena &operator=(ConstraintSolverArena &&) = delete;
+    };
     
+    std::unique_ptr<ConstraintSolverArena> CurrentConstraintSolverArena;
+    Arena &getArena(AllocationArena arena) {
+        switch (arena) {
+            case AllocationArena::Permanent:
+                return Permanent;
+            case AllocationArena::ConstraintSolver:
+                assert(CurrentConstraintSolverArena && "Constraint solver active?? >:(");
+                return *CurrentConstraintSolverArena;
+        }
+        llvm_unreachable("bad AllocationArena");
+    }
+    llvm::FoldingSet<SILLayout> SILLayouts;
+    
+};
+
+ASTContext::Implementation::Implementation() : IdentifierTable(Allocator) {
+    //
 }
+
+ASTContext::Implementation::~Implementation() {
+    for (auto &cleanup : Cleanups)
+        cleanup();
+}
+
+ConstraintCheckerArenaRAII::ConstraintCheckerArenaRAII(ASTContext &self, llvm::BumpPtrAllocator &allocator) 
+: Self(self), Data(self.Impl.CurrentConstraintSolverArena.release()) {
+    Self.Impl.CurrentConstraintSolverArena.reset(new ASTContext::Implementation::ConstraintSolverArena(allocator));
+}
+
+ConstraintCheckerArenaRAII::~ConstraintCheckerArenaRAII() {
+    Self.Impl.CurrentConstraintSolverArena.reset((ASTContext::Implementation::ConstraintSolverArena *)Data);
+}
+
