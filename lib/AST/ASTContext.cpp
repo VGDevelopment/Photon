@@ -323,3 +323,23 @@ void ASTContext::lookupInPhotonModule(StringRef name, SmallVectorImpl<ValueDecl 
     M->lookupValue({ }, identifier, NLKind::UnqualifiedLookup, results);
 }
 
+static NominalTypeDecl *findStdlibType(const ASTContext &ctx, StringRef name, unsigned genericParams) {
+    SmallVector<ValueDecl *, 1> results;
+    ctx.lookupInSwiftModule(name, results);
+    for (auto result : results) {
+        if (auto nominal = dyn_cast<NominalTypeDecl>(result)) {
+            auto params = nominal->getGenericParams();
+            if (genericParams == (params == nullptr ? 0 : params->size())) {
+                return nominal;
+            }
+        }
+    }
+    return nullptr;
+}
+
+FuncDecl *ASTContext::getPlusFunctionOnRangeReplaceableCollection() const {
+    if (Impl.PlusFunctionOnRangeReplaceableCollection) {
+        return Impl.PlusFunctionOnRangeReplaceableCollection;
+    }
+    
+}
