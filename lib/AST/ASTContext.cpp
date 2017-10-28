@@ -341,5 +341,18 @@ FuncDecl *ASTContext::getPlusFunctionOnRangeReplaceableCollection() const {
     if (Impl.PlusFunctionOnRangeReplaceableCollection) {
         return Impl.PlusFunctionOnRangeReplaceableCollection;
     }
-    
+    SmallVector<ValueDecl *, 1> Results;
+    lookupInSwiftModule("+", Results);
+    for (auto Result : Results) {
+        if (auto *FD = dyn_cast<FuncDecl>(Result)) {
+            if (!FD->getOperatorDecl()) continue;
+            for (auto Req: FD->getGenericRequirements()) {
+                if (Req.getKind() == RequirementKind::Conformance && 
+                Req.getSecondType()->getNominalOrBoundGenericNominal() == getRangeReplaceableCollectionDecl()) {
+                    Impl.PlusFunctionOnRangeReplaceableCollection = FD;
+                }
+            }
+        }
+    }
+    return Impl.PlusFunctionOnRangeReplaceableCollection;
 }
