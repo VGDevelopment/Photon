@@ -325,7 +325,7 @@ void ASTContext::lookupInPhotonModule(StringRef name, SmallVectorImpl<ValueDecl 
 
 static NominalTypeDecl *findStdlibType(const ASTContext &ctx, StringRef name, unsigned genericParams) {
     SmallVector<ValueDecl *, 1> results;
-    ctx.lookupInSwiftModule(name, results);
+    ctx.lookupInPhotonModule(name, results);
     for (auto result : results) {
         if (auto nominal = dyn_cast<NominalTypeDecl>(result)) {
             auto params = nominal->getGenericParams();
@@ -342,7 +342,7 @@ FuncDecl *ASTContext::getPlusFunctionOnRangeReplaceableCollection() const {
         return Impl.PlusFunctionOnRangeReplaceableCollection;
     }
     SmallVector<ValueDecl *, 1> Results;
-    lookupInSwiftModule("+", Results);
+    lookupInPhotonModule("+", Results);
     for (auto Result : Results) {
         if (auto *FD = dyn_cast<FuncDecl>(Result)) {
             if (!FD->getOperatorDecl()) continue;
@@ -355,4 +355,30 @@ FuncDecl *ASTContext::getPlusFunctionOnRangeReplaceableCollection() const {
         }
     }
     return Impl.PlusFunctionOnRangeReplaceableCollection;
+}
+
+FuncDecl *ASTContext::getPlusFunctionOnString() const {
+    if (Impl.PlusFunctionOnString) {
+        return Impl.PlusFunctionOnString;
+    }
+    SmallVector<ValueDecl *, 1> Results;
+    lookupInPhotonModule("+", Results);
+    for (auto Result : Results) {
+        if (auto *FD = dyn_cast<FuncDecl>(Result)) {
+            if (!FD->getOperatorDecl()) continue;
+            auto ResultType = FD->getResultInterfaceType();
+            if (ResultType->getNominalOrBoundGenericNominal() != getStringDecl()) continue;
+            auto ParamLists = FD->getParameterLists();
+            if (ParamLists.size() != 2 || ParamLists[1]->size() != 2) continue;
+            auto CheckIfStringParam = [this](ParamDecl* Param) {
+                auto Type = Param->getInterfaceType()->getNominalOrBoundGenericNominal();
+                return Type == getStringDecl();
+            };
+            if (CheckIfStringParam(ParamLists[1]->get(0)) && CheckIfStringParam(ParamLists[1]->get(1))) {
+                Impl.PlusFunctionOnString = FD;
+                break;
+            }
+        }
+    }
+    return Impl.PlusFunctionOnString;
 }
