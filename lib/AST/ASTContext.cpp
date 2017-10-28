@@ -244,3 +244,43 @@ ConstraintCheckerArenaRAII::~ConstraintCheckerArenaRAII() {
     Self.Impl.CurrentConstraintSolverArena.reset((ASTContext::Implementation::ConstraintSolverArena *)Data);
 }
 
+static ModuleDecl *createBuiltinModule(ASTContext &ctx) {
+    auto M = ModuleDecl::create(ctx.getIdentifier("Builtin"), ctx);
+    M->addFile(*new (ctx) BuiltinUnit(*M));
+    return M;
+}
+
+ASTContext::ASTContext(LangOptions &langOpts, SearchPathOptions &SearchPathOpts, SourceManager &SourceMgr, DiagnosticEngine &Diags)
+: Impl(*new Implementation()),
+LangOpts(langOpts),
+SearchPathOpts(SearchPathOpts),
+SourceMgr(SourceMgr),
+Diags(Diags),
+TheBuiltinModule(createBuiltinModule(*this)),
+StdlibModuleName(getIdentifier(STDLIB_NAME)),
+PhotonShimsModuleName(getIdentifier(PHOTON_SHIMS_NAME)),
+TypeCheckerDebug(new StderrTypeCheckerDebugConsumer()),
+TheErrorType(new (*this, AllocationArena::Permanent) ErrorType(*this, Type(), RecursiveTypeProperties::HasError)),
+TheUnresolvedType(new (*this, AllocationArena::Permanent) UnresolvedType(*this)),
+TheEmptyTupleType(TupleType::get(ArrayRef<TupleTypeElt>(), *this)),
+TheAnyType(ProtocolCompositionType::get(*this, ArrayRef<Type>(), false)),
+TheNativeObjectType(new (*this, AllocationArena::Permanent) BuiltinNativeObjectType(*this)),
+TheBridgeObjectType(new (*this, AllocationArena::Permanent) BuiltinBridgeObjectType(*this)),
+TheUnknownObjectType(new (*this, AllocationArena::Permanent) BuiltinUnknownObjectType(*this)),
+TheRawPointerType(new (*this, AllocationArena::Permanent) BuiltinRawPointerType(*this)),
+TheUnsafeValueBufferType(new (*this, AllocationArena::Permanent) BuiltinUnsafeValueBufferType(*this)),
+TheIEEE32Type(new (*this, AllocationArena::Permanent) BuiltinFloatType(BuiltinFloatType::IEEE32,*this)),
+TheIEEE64Type(new (*this, AllocationArena::Permanent) BuiltinFloatType(BuiltinFloatType::IEEE64,*this)),
+TheIEEE16Type(new (*this, AllocationArena::Permanent) BuiltinFloatType(BuiltinFloatType::IEEE16,*this)),
+TheIEEE80Type(new (*this, AllocationArena::Permanent) BuiltinFloatType(BuiltinFloatType::IEEE80,*this)),
+TheIEEE128Type(new (*this, AllocationArena::Permanent) BuiltinFloatType(BuiltinFloatType::IEEE128, *this)),
+ThePPC128Type(new (*this, AllocationArena::Permanent) BuiltinFloatType(BuiltinFloatType::PPC128, *this)) {
+    #define IDENTIFIER_WITH_NAME(Name, IdStr) Id_##Name = getIdentifier(IdStr);
+    #include "photon/AST/KnownIdentifiers.def"
+    for (StringRef path : SearchPathOpts.ImportSearchPaths) Impl.SearchPathsSet[path] |= SearchPathKind::Import;
+    for (const auto &framepath : SearchPathOpts.FrameworkSearchPaths) Impl.SearchPathsSet[framepath.Path] |= SearchPathKind::Framework;
+}
+
+ASTContext::~ASTContext() {
+    
+}
