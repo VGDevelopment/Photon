@@ -282,5 +282,44 @@ ThePPC128Type(new (*this, AllocationArena::Permanent) BuiltinFloatType(BuiltinFl
 }
 
 ASTContext::~ASTContext() {
-    
+    delete &Impl;
 }
+
+llvm::BumpPtrAllocator &ASTContext::getAllocator(AllocationArena arena) const {
+    switch (arena) {
+        case AllocationArena::Permanent:
+            return Impl.Allocator;
+        case AllocationArena::ConstraintSolver:
+            assert(Impl.CurrentConstraintSolverArena != nullptr);
+            return Impl.CurrentConstraintSolverArena->Allocator;
+    }
+    llvm_unreachable("bad AllocationArena");
+}
+
+LazyResolver *ASTContext::getLazyResolver() const {
+    return Impl.Resolver;
+}
+
+void ASTContext::setLazyResolver(LazyResolver *resolver) {
+    if (resolver) {
+        assert(Impl.Resolver == nullptr && "has a resolver [already]");
+        Impl.Resolver = resolver;
+    } else {
+        assert(Impl.Resolver != nullptr && "no resolver found");
+        Impl.Resolver = resolver;
+    }
+}
+
+Identifier ASTContext::getIdentifier(StringRef Str) const {
+    if (Str.data() == nullptr) return Identifier(nullptr);
+    auto I = Impl.IdentifierTable.insert(std::make_pair(Str, char())).first;
+    return Identifier(I->getKeyData());
+}
+
+void ASTContext::lookupInPhotonModule(StringRef name, SmallVectorImpl<ValueDecl *> &results) const {
+    ModuleDecl *M = getStdlibModule();
+    if (!M) return;
+    auto identifier = getIdentifier(name);
+    M->lookupValue({ }, identifier, NLKind::UnqualifiedLookup, results);
+}
+
